@@ -1,5 +1,5 @@
 <template>
-  <v-container class="text-center">
+  <v-container class="text-center fill-height flex-column">
     <v-row>
       <v-col v-if="!gameMode" cols="12">
         <v-img
@@ -11,7 +11,9 @@
       </v-col>
 
       <v-col>
-        <h1 class="display-2 font-weight-bold mb-3">Welcome to Numerado!</h1>
+        <h1 v-if="!gameMode" class="display-2 font-weight-bold mb-3">
+          Welcome to Numerado!
+        </h1>
 
         <p v-if="!gameMode" class="subheading font-weight-regular mb-10">
           Begin by selecting a game mode.
@@ -37,15 +39,16 @@
 <script>
 import ReadAloudPractice from "./ReadAloudPractice.vue";
 import ListeningPractice from "./ListeningPractice.vue";
-
+import { gameSettings } from "@/scripts/gameSettings";
 export default {
-  name: "WelcomePage",
+  name: "GamePage",
   components: {
     ReadAloudPractice,
     ListeningPractice,
   },
   data: () => ({
     gameMode: null,
+    gameSettings,
   }),
 };
 </script>
