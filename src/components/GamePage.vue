@@ -20,13 +20,11 @@
         </p>
 
         <v-btn-toggle v-model="gameMode" divided variant="outlined" mandatory>
-          <v-btn value="readAloud">
-            <span>Read Aloud</span>
-            <v-icon end>mdi-account-voice</v-icon>
+          <v-btn value="readAloud" append-icon="mdi-account-voice">
+            Read Aloud
           </v-btn>
-          <v-btn value="listening">
-            <span>Listening Practice</span>
-            <v-icon end>mdi-headphones</v-icon>
+          <v-btn value="listening" append-icon="mdi-headphones">
+            Listening Practice
           </v-btn>
         </v-btn-toggle>
       </v-col>

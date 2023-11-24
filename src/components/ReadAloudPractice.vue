@@ -14,56 +14,78 @@
       >
         <v-tooltip activator="parent" location="top"
           ><p>Click to hear the number pronounced.</p>
-          <p align="center">( <v-icon>mdi-keyboard</v-icon> R )</p></v-tooltip
+          <p align="center">
+            ( <v-icon>mdi-keyboard</v-icon>
+
+            <KeyboardKey>R</KeyboardKey>
+            )
+          </p></v-tooltip
         >
-        <span> {{ generatedNumber }}</span>
+        <span> {{ localizedNumber }}</span>
       </h1>
       <h1 v-else class="display-1">
-        {{ generatedNumber }}
+        {{ localizedNumber }}
       </h1>
     </v-row>
     <v-row>
       <div v-if="gameState === 0">
-        <p>Press Space <v-icon>mdi-keyboard-space</v-icon> to start.</p>
+        <h3>Welcome to Read Aloud Practice</h3>
+        <p>
+          Press
+          <KeyboardKey>Space <v-icon>mdi-keyboard-space</v-icon></KeyboardKey>
+          to start.
+        </p>
       </div>
       <div v-if="gameState === 1">
         <p>
-          Press Space <v-icon>mdi-keyboard-space</v-icon> after you are done to
-          stop the timer.
+          Read the number aloud and press
+          <KeyboardKey>Space <v-icon>mdi-keyboard-space</v-icon></KeyboardKey>
+          once you are done.
         </p>
       </div>
       <div v-if="gameState === 2">
-        <p>Press Space <v-icon>mdi-keyboard-space</v-icon> to continue.</p>
+        <p>
+          Press
+          <KeyboardKey>Space <v-icon>mdi-keyboard-space</v-icon></KeyboardKey>
+          to continue.
+        </p>
       </div>
     </v-row>
   </v-container>
 </template>
 
 <script>
-import { gameSettings } from "@/scripts/gameSettings";
 import "talkify-tts";
+
+import { gameSettings } from "@/scripts/gameSettings";
+import { getRandomNumber } from "@/scripts/utils";
+import KeyboardKey from "./KeyboardKey.vue";
+
 const GameState = {
   INITIAL: 0,
   TIMER_STARTED: 1,
-  TIMER_ENDED: 2,
+  TIMER_STOPPED: 2,
 };
-
-const getRandomNumber = (min, max) => {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-};
-
-const player = new window.talkify.Html5Player().forceLanguage(
-  gameSettings.voiceLanguage
-);
 
 export default {
   name: "ReadAloudPractice",
+  components: {
+    KeyboardKey,
+  },
   data: () => ({
     gameState: GameState.INITIAL,
     generatedNumber: undefined,
     timer: undefined,
     gameSettings,
   }),
+  computed: {
+    localizedNumber() {
+      if (this.generatedNumber === undefined) return undefined;
+      return this.generatedNumber.toLocaleString(
+        this.gameSettings.voice.language
+      );
+    },
+  },
   watch: {
     timer: {
       handler(value) {
@@ -74,27 +96,33 @@ export default {
         }, 100);
       },
     },
+    "gameSettings.voice": {
+      handler() {
+        // regenerate voice player
+        this.generateVoicePlayer();
+      },
+      deep: true,
+    },
   },
   mounted() {
     window.addEventListener("keydown", this.handleKeydown);
+    this.generateVoicePlayer();
   },
   beforeUnmount() {
     window.removeEventListener("keydown", this.handleKeydown);
   },
   methods: {
     handleKeydown(event) {
-      if (event.key !== " " && event.key !== "r" && event.key !== "R") return;
-
       switch (event.key) {
         case "R":
         case "r":
-          if (this.gameState === GameState.TIMER_ENDED)
+          if (this.gameState === GameState.TIMER_STOPPED)
             this.playGeneratedNumberAudio();
           return;
         case " ":
           if (
             this.gameState === GameState.INITIAL ||
-            this.gameState === GameState.TIMER_ENDED
+            this.gameState === GameState.TIMER_STOPPED
           ) {
             // Generate new number & start the timer
             this.generatedNumber = getRandomNumber(
@@ -106,13 +134,19 @@ export default {
             this.timer = 0.0;
           } else if (this.gameState === GameState.TIMER_STARTED) {
             // End the timer & read the number out loud
-            this.gameState = GameState.TIMER_ENDED;
+            this.gameState = GameState.TIMER_STOPPED;
             this.playGeneratedNumberAudio();
           }
       }
     },
     playGeneratedNumberAudio() {
-      player.playText(String(this.generatedNumber));
+      window.talkifyVoicePlayer.playText(this.localizedNumber);
+    },
+    generateVoicePlayer() {
+      window.talkifyVoicePlayer = new window.talkify.Html5Player()
+        .forceLanguage(this.gameSettings.voice.language)
+        .usePitch(this.gameSettings.voice.pitch)
+        .setRate(this.gameSettings.voice.rate);
     },
   },
 };
