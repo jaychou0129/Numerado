@@ -1,10 +1,9 @@
 <script setup>
-import "talkify-tts";
-
+import { watch, computed, ref, onMounted, onBeforeUnmount } from "vue";
 import { gameSettings } from "@/scripts/gameSettings";
 import { getRandomNumber } from "@/scripts/utils";
-import KeyboardKey from "./KeyboardKey.vue";
-import { watch, computed, ref, onMounted, onBeforeUnmount } from "vue";
+import KeyboardKey from "@/components/KeyboardKey.vue";
+import { useCustomReader } from "@/composables/useCustomReader";
 
 const GameState = {
   INITIAL: 0,
@@ -27,12 +26,18 @@ const userInputNumber = computed(() => {
   return parseInt(userInputFiltered);
 });
 
+const { playAudio, isTTSSupported } = useCustomReader(localizedNumber, {
+  lang: computed(() => gameSettings.voice.language),
+  pitch: computed(() => gameSettings.voice.pitch),
+  rate: computed(() => gameSettings.voice.rate),
+});
+
 const handleKeydown = (event) => {
   switch (event.key) {
     case "R":
     case "r":
       if (gameState.value === GameState.TIMER_STARTED) {
-        playGeneratedNumberAudio();
+        playAudio();
         event.preventDefault();
       }
       return;
@@ -54,20 +59,9 @@ const handleKeydown = (event) => {
         setTimeout(() => {
           UserInputTextbox.value.focus();
         });
-        playGeneratedNumberAudio();
+        playAudio();
       }
   }
-};
-
-const playGeneratedNumberAudio = () => {
-  window.talkifyVoicePlayer.playText(localizedNumber.value);
-};
-
-const generateVoicePlayer = () => {
-  window.talkifyVoicePlayer = new window.talkify.Html5Player()
-    .forceLanguage(gameSettings.voice.language)
-    .usePitch(gameSettings.voice.pitch)
-    .setRate(gameSettings.voice.rate);
 };
 
 watch(userInputNumber, (guessedValue) => {
@@ -83,11 +77,9 @@ watch(timer, (value) => {
     timer.value += 0.1;
   }, 100);
 });
-watch(() => gameSettings.voice, generateVoicePlayer, { deep: true });
 
 onMounted(() => {
   window.addEventListener("keydown", handleKeydown);
-  generateVoicePlayer();
 });
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", handleKeydown);
@@ -95,7 +87,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <v-container class="fill-height flex-column">
+  <v-alert
+    v-if="!isTTSSupported"
+    density="compact"
+    type="warning"
+    title="Not supported"
+    text="It seems like text-to-speech is not available on your system. Switch to a different language and try again."
+  ></v-alert>
+  <v-container v-else class="fill-height flex-column">
     <v-row>
       <p v-if="timer !== undefined">
         {{ parseFloat(timer).toFixed(1) }}

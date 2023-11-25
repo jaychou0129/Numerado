@@ -1,9 +1,9 @@
 <script setup>
-import "talkify-tts";
 import { ref, watch, onMounted, onBeforeUnmount, computed } from "vue";
 import { gameSettings } from "@/scripts/gameSettings";
 import { getRandomNumber } from "@/scripts/utils";
-import KeyboardKey from "./KeyboardKey.vue";
+import KeyboardKey from "@/components/KeyboardKey.vue";
+import { useCustomReader } from "@/composables/useCustomReader";
 
 const GameState = {
   INITIAL: 0,
@@ -20,12 +20,18 @@ const localizedNumber = computed(() => {
 });
 const formattedTimerValue = computed(() => parseFloat(timer.value).toFixed(1));
 
+const { playAudio, isTTSSupported } = useCustomReader(localizedNumber, {
+  lang: computed(() => gameSettings.voice.language),
+  pitch: computed(() => gameSettings.voice.pitch),
+  rate: computed(() => gameSettings.voice.rate),
+});
+
 const handleKeydown = (event) => {
   switch (event.key) {
     case "R":
     case "r":
       if (gameState.value === GameState.TIMER_STOPPED) {
-        playGeneratedNumberAudio();
+        playAudio();
       }
       return;
     case " ":
@@ -44,20 +50,9 @@ const handleKeydown = (event) => {
       } else if (gameState.value === GameState.TIMER_STARTED) {
         // End the timer & read the number out loud
         gameState.value = GameState.TIMER_STOPPED;
-        playGeneratedNumberAudio();
+        playAudio();
       }
   }
-};
-
-const playGeneratedNumberAudio = () => {
-  window.talkifyVoicePlayer.playText(localizedNumber.value);
-};
-
-const generateVoicePlayer = () => {
-  window.talkifyVoicePlayer = new window.talkify.Html5Player()
-    .forceLanguage(gameSettings.voice.language)
-    .usePitch(gameSettings.voice.pitch)
-    .setRate(gameSettings.voice.rate);
 };
 
 watch(timer, (value) => {
@@ -68,11 +63,8 @@ watch(timer, (value) => {
   }, 100);
 });
 
-watch(() => gameSettings.voice, generateVoicePlayer, { deep: true });
-
 onMounted(() => {
   window.addEventListener("keydown", handleKeydown);
-  generateVoicePlayer();
 });
 
 onBeforeUnmount(() => {
@@ -81,7 +73,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <v-container class="fill-height flex-column">
+  <v-alert
+    v-if="!isTTSSupported"
+    density="compact"
+    type="warning"
+    title="Not supported"
+    text="It seems like text-to-speech is not available on your system. Switch to a different language and try again."
+  ></v-alert>
+  <v-container v-else class="fill-height flex-column">
     <v-row>
       <p v-if="timer !== undefined">
         {{ formattedTimerValue }}
