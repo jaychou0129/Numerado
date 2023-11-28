@@ -9,5 +9,5 @@ export const useCustomReader = (text, voiceOptions) => {
     setTimeout(speak, 10);
   };
 
-  return { playAudio, isTTSSupported: isSupported };
+  return { playAudio, isTTSSupported: isSupported, stopAudio: stop };
 };

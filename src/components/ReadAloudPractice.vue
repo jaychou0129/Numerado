@@ -4,6 +4,7 @@ import { gameSettings } from "@/scripts/gameSettings";
 import { getRandomNumber } from "@/scripts/utils";
 import KeyboardKey from "@/components/KeyboardKey.vue";
 import { useCustomReader } from "@/composables/useCustomReader";
+import { useSpeechRecognition } from "@vueuse/core";
 
 const GameState = {
   INITIAL: 0,
@@ -20,12 +21,34 @@ const localizedNumber = computed(() => {
 });
 const formattedTimerValue = computed(() => parseFloat(timer.value).toFixed(1));
 
-const { playAudio, isTTSSupported } = useCustomReader(localizedNumber, {
+const { playAudio, stopAudio, isTTSSupported } = useCustomReader(
+  localizedNumber,
+  {
+    lang: computed(() => gameSettings.voice.language),
+    pitch: computed(() => gameSettings.voice.pitch),
+    rate: computed(() => gameSettings.voice.rate),
+  }
+);
+
+const speech = useSpeechRecognition({
   lang: computed(() => gameSettings.voice.language),
-  pitch: computed(() => gameSettings.voice.pitch),
-  rate: computed(() => gameSettings.voice.rate),
 });
 
+if (speech.isSupported.value) {
+  watch(speech.result, (speechResult) => {
+    const numberStrings = speechResult.match(/(?:[\d.,]+\.)?[\d.,]+/g) || [];
+    for (let numberString of numberStrings.reverse()) {
+      numberString = numberString.replace(/\D+/g, "");
+      if (parseInt(numberString) === generatedNumber.value) {
+        // End the timer & read the number out loud
+        speech.stop();
+        gameState.value = GameState.TIMER_STOPPED;
+        playAudio();
+        break;
+      }
+    }
+  });
+}
 const handleKeydown = (event) => {
   switch (event.key) {
     case "R":
@@ -47,8 +70,12 @@ const handleKeydown = (event) => {
 
         gameState.value = GameState.TIMER_STARTED;
         timer.value = 0.0;
+        stopAudio();
+        speech.result.value = "";
+        speech.start();
       } else if (gameState.value === GameState.TIMER_STARTED) {
         // End the timer & read the number out loud
+        speech.stop();
         gameState.value = GameState.TIMER_STOPPED;
         playAudio();
       }
@@ -118,6 +145,9 @@ onBeforeUnmount(() => {
         </p>
       </div>
       <div v-if="gameState === GameState.TIMER_STARTED">
+        <v-card-text>
+          {{ speech.result }}
+        </v-card-text>
         <p>
           Read the number aloud and press
           <KeyboardKey>Space <v-icon>mdi-keyboard-space</v-icon></KeyboardKey>
