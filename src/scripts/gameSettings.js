@@ -11,7 +11,7 @@ export const SUPPORTED_VOICE_LANGUAGES = [
   { title: "Japanese", value: "ja-JP" },
   { title: "Korean", value: "ko-KR" },
   { title: "Swedish", value: "sv-SE" },
-  { title: "Mandarin Chinese", value: "zh-CN" },
+  { title: "Mandarin Chinese (Taiwan)", value: "zh-TW" },
 ];
 
 export const SUPPORTED_DISPLAY_LANGUAGES = [
