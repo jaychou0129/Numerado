@@ -118,7 +118,7 @@ onBeforeUnmount(() => {
         v-if="gameState === GameState.TIMER_STOPPED"
         class="display-1"
         style="cursor: pointer"
-        @click="playGeneratedNumberAudio"
+        @click="playAudio"
       >
         <v-tooltip activator="parent" location="top"
           ><p>Click to hear the number pronounced.</p>
