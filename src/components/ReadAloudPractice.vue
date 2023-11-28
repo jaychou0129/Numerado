@@ -1,13 +1,121 @@
+<script setup>
+import { ref, watch, onMounted, onBeforeUnmount, computed } from "vue";
+import { gameSettings } from "@/scripts/gameSettings";
+import { getRandomNumber } from "@/scripts/utils";
+import KeyboardKey from "@/components/KeyboardKey.vue";
+import { useCustomReader } from "@/composables/useCustomReader";
+import { useSpeechRecognition } from "@vueuse/core";
+
+const GameState = {
+  INITIAL: 0,
+  TIMER_STARTED: 1,
+  TIMER_STOPPED: 2,
+};
+
+const gameState = ref(GameState.INITIAL);
+const generatedNumber = ref(undefined);
+const timer = ref(undefined);
+const localizedNumber = computed(() => {
+  if (generatedNumber.value === undefined) return undefined;
+  return generatedNumber.value.toLocaleString(gameSettings.voice.language);
+});
+const formattedTimerValue = computed(() => parseFloat(timer.value).toFixed(1));
+
+const { playAudio, stopAudio, isTTSSupported } = useCustomReader(
+  localizedNumber,
+  {
+    lang: computed(() => gameSettings.voice.language),
+    pitch: computed(() => gameSettings.voice.pitch),
+    rate: computed(() => gameSettings.voice.rate),
+  }
+);
+
+const speech = useSpeechRecognition({
+  lang: computed(() => gameSettings.voice.language),
+});
+
+if (speech.isSupported.value) {
+  watch(speech.result, (speechResult) => {
+    const numberStrings = speechResult.match(/(?:[\d.,]+\.)?[\d.,]+/g) || [];
+    for (let numberString of numberStrings.reverse()) {
+      numberString = numberString.replace(/\D+/g, "");
+      if (parseInt(numberString) === generatedNumber.value) {
+        // End the timer & read the number out loud
+        speech.stop();
+        gameState.value = GameState.TIMER_STOPPED;
+        playAudio();
+        break;
+      }
+    }
+  });
+}
+const handleKeydown = (event) => {
+  switch (event.key) {
+    case "R":
+    case "r":
+      if (gameState.value === GameState.TIMER_STOPPED) {
+        playAudio();
+      }
+      return;
+    case " ":
+      if (
+        gameState.value === GameState.INITIAL ||
+        gameState.value === GameState.TIMER_STOPPED
+      ) {
+        // Generate new number & start the timer
+        generatedNumber.value = getRandomNumber(
+          gameSettings.numberGeneratorMin,
+          gameSettings.numberGeneratorMax
+        );
+
+        gameState.value = GameState.TIMER_STARTED;
+        timer.value = 0.0;
+        stopAudio();
+        speech.result.value = "";
+        speech.start();
+      } else if (gameState.value === GameState.TIMER_STARTED) {
+        // End the timer & read the number out loud
+        speech.stop();
+        gameState.value = GameState.TIMER_STOPPED;
+        playAudio();
+      }
+  }
+};
+
+watch(timer, (value) => {
+  if (value === undefined) return;
+  if (gameState.value != GameState.TIMER_STARTED) return;
+  setTimeout(() => {
+    timer.value += 0.1;
+  }, 100);
+});
+
+onMounted(() => {
+  window.addEventListener("keydown", handleKeydown);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", handleKeydown);
+});
+</script>
+
 <template>
-  <v-container class="fill-height flex-column">
+  <v-alert
+    v-if="!isTTSSupported"
+    density="compact"
+    type="warning"
+    title="Not supported"
+    text="It seems like text-to-speech is not available on your system. Switch to a different language and try again."
+  ></v-alert>
+  <v-container v-else class="fill-height flex-column">
     <v-row>
       <p v-if="timer !== undefined">
-        {{ parseFloat(timer).toFixed(1) }}
+        {{ formattedTimerValue }}
       </p>
     </v-row>
     <v-row>
       <h1
-        v-if="gameState === 2"
+        v-if="gameState === GameState.TIMER_STOPPED"
         class="display-1"
         style="cursor: pointer"
         @click="playGeneratedNumberAudio"
@@ -28,7 +136,7 @@
       </h1>
     </v-row>
     <v-row>
-      <div v-if="gameState === 0">
+      <div v-if="gameState === GameState.INITIAL">
         <h3>Welcome to Read Aloud Practice</h3>
         <p>
           Press
@@ -36,14 +144,17 @@
           to start.
         </p>
       </div>
-      <div v-if="gameState === 1">
+      <div v-if="gameState === GameState.TIMER_STARTED">
+        <v-card-text>
+          {{ speech.result }}
+        </v-card-text>
         <p>
           Read the number aloud and press
           <KeyboardKey>Space <v-icon>mdi-keyboard-space</v-icon></KeyboardKey>
           once you are done.
         </p>
       </div>
-      <div v-if="gameState === 2">
+      <div v-if="gameState === GameState.TIMER_STOPPED">
         <p>
           Press
           <KeyboardKey>Space <v-icon>mdi-keyboard-space</v-icon></KeyboardKey>
@@ -53,104 +164,6 @@
     </v-row>
   </v-container>
 </template>
-
-<script>
-import "talkify-tts";
-
-import { gameSettings } from "@/scripts/gameSettings";
-import { getRandomNumber } from "@/scripts/utils";
-import KeyboardKey from "./KeyboardKey.vue";
-
-const GameState = {
-  INITIAL: 0,
-  TIMER_STARTED: 1,
-  TIMER_STOPPED: 2,
-};
-
-export default {
-  name: "ReadAloudPractice",
-  components: {
-    KeyboardKey,
-  },
-  data: () => ({
-    gameState: GameState.INITIAL,
-    generatedNumber: undefined,
-    timer: undefined,
-    gameSettings,
-  }),
-  computed: {
-    localizedNumber() {
-      if (this.generatedNumber === undefined) return undefined;
-      return this.generatedNumber.toLocaleString(
-        this.gameSettings.voice.language
-      );
-    },
-  },
-  watch: {
-    timer: {
-      handler(value) {
-        if (value === undefined) return;
-        if (this.gameState != GameState.TIMER_STARTED) return;
-        setTimeout(() => {
-          this.timer += 0.1;
-        }, 100);
-      },
-    },
-    "gameSettings.voice": {
-      handler() {
-        // regenerate voice player
-        this.generateVoicePlayer();
-      },
-      deep: true,
-    },
-  },
-  mounted() {
-    window.addEventListener("keydown", this.handleKeydown);
-    this.generateVoicePlayer();
-  },
-  beforeUnmount() {
-    window.removeEventListener("keydown", this.handleKeydown);
-  },
-  methods: {
-    handleKeydown(event) {
-      switch (event.key) {
-        case "R":
-        case "r":
-          if (this.gameState === GameState.TIMER_STOPPED)
-            this.playGeneratedNumberAudio();
-          return;
-        case " ":
-          if (
-            this.gameState === GameState.INITIAL ||
-            this.gameState === GameState.TIMER_STOPPED
-          ) {
-            // Generate new number & start the timer
-            this.generatedNumber = getRandomNumber(
-              gameSettings.numberGeneratorMin,
-              gameSettings.numberGeneratorMax
-            );
-
-            this.gameState = GameState.TIMER_STARTED;
-            this.timer = 0.0;
-          } else if (this.gameState === GameState.TIMER_STARTED) {
-            // End the timer & read the number out loud
-            this.gameState = GameState.TIMER_STOPPED;
-            this.playGeneratedNumberAudio();
-          }
-      }
-    },
-    playGeneratedNumberAudio() {
-      window.talkifyVoicePlayer.playText(this.localizedNumber);
-    },
-    generateVoicePlayer() {
-      window.talkifyVoicePlayer = new window.talkify.Html5Player()
-        .forceLanguage(this.gameSettings.voice.language)
-        .usePitch(this.gameSettings.voice.pitch)
-        .setRate(this.gameSettings.voice.rate);
-    },
-  },
-};
-</script>
 
 <style scoped>
 h1 {
