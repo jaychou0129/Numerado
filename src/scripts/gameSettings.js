@@ -6,6 +6,7 @@ export const SUPPORTED_VOICE_LANGUAGES = [
   { title: "English (US)", value: "en-US" },
   { title: "Spanish (Spain)", value: "es-ES" },
   { title: "Spanish (Mexico)", value: "es-MX" },
+  { title: "Portuguese (Brazil)", value: "pt-BR" },
   { title: "French", value: "fr-FR" },
   { title: "Italian", value: "it-IT" },
   { title: "Japanese", value: "ja-JP" },
